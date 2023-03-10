@@ -42,7 +42,10 @@ string에 이미 존재하는 파일 또는 이미 존재하는 파일을 입력
 (int)를 테이블에서 삭제함  
   
 > e (int1) (int2)  
-(int1) ~ (int2) 까지의 수를 테이블에서 삭제함  
+(int1) ~ (int2) 까지의 수를 테이블에서 삭제함 
+
+> u (int1) (int2)
+(int1) key의 value를 (int2)로 변경함
   
 > n  
 buffer의 LRU list를 buffer index를 통해 순회하며 출력함  
