@@ -10,7 +10,7 @@
 
 int init_trx_table();
 int trx_begin();
-void trx_abort(int trx_id);
+void trx_abort(int trx_id,int is_locked);
 int trx_commit(int trx_id);
 void set_trx_hash_node(int trx_id, lock_t* new_lock);
 int trx_remove_wait_lock(lock_t* old_wait_lock, int trx_id);

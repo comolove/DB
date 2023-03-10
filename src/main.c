@@ -20,10 +20,9 @@ void* thread_test(void* arg) {
     int k,input2;
     int table_id = *(int*)arg;
     char* findRetVal = (char*)malloc(120*sizeof(char));
-    for(k=1;k<10;k++) {
-        int r1 = rand()%100;
-        sprintf(findRetVal,"%d",r1);
-        int res = db_update(table_id,r1,findRetVal,trx_id);
+    for(k=1;k<100;k++) {
+        sprintf(findRetVal,"%d",k+1);
+        int res = db_update(table_id,k,findRetVal,trx_id);
         printf("%d -> %s\n",res,findRetVal);
         if(res) {
             abort_num++;

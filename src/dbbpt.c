@@ -365,9 +365,9 @@ int db_update(int table_id, int64_t key, char* values, int trx_id) {
     HeaderPage* hp = (HeaderPage*)buffer_read_page(table_id,0);
     char* ret_val = (char*)malloc(sizeof(char)*120);
     if(db_find_with_hp(table_id,key,ret_val,(page_t*)hp,0,NULL) == -1) {
-        trx_abort(trx_id);
-        free(ret_val);
         buffer_close_page(table_id,0,0);
+        trx_abort(trx_id,0);
+        free(ret_val);
         return -1;
     }
     free(ret_val);
@@ -383,8 +383,8 @@ int db_update(int table_id, int64_t key, char* values, int trx_id) {
 int db_find(int table_id,int64_t key, char* ret_val,int trx_id) {
     HeaderPage* hp = (HeaderPage*)buffer_read_page(table_id,0);
     if(db_find_with_hp(table_id,key,ret_val,(page_t*)hp,0,NULL) == -1) {
-        trx_abort(trx_id);
         buffer_close_page(table_id,0,0);
+        trx_abort(trx_id,0);
         return -1;
     }
     buffer_close_page(table_id,0,0);

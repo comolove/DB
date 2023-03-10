@@ -27,146 +27,83 @@ lock_t* lock_acquire(int table_id, int64_t key, int trx_id, int lock_mode) {
     }
 
     lock_t* new_lock = (lock_t*)malloc(sizeof(lock_t));
-
-    //key does not exist in lock_hash_table
-    if(cur_node == NULL) {
-        lock_hash_node* new_node = (lock_hash_node*)malloc(sizeof(lock_hash_node));
-
-        init_lock(new_lock,NULL,NULL,new_node,lock_mode,1);
-
-        new_node->table_id = table_id;
-        new_node->record_id = key;
-        new_node->head = new_lock;
-        new_node->tail = new_lock;
-
-        set_trx_hash_node(trx_id,new_lock);
-    }
-    else {
-        lock_t* cur_lock = cur_node->head;
-        while(cur_lock != NULL && cur_lock->lock_mode == 0) {
-            cur_lock = cur_lock->next;
-        }
-        if(cur_lock == NULL) {
-            //lock이 없을때
-            if(cur_node->head == NULL) {
-                init_lock(new_lock,NULL,NULL,cur_node,lock_mode,1);
-
-                cur_node->head = new_lock;
-                cur_node->tail = new_lock;
-
-                set_trx_hash_node(trx_id,new_lock);
-            }
-            //s_lock이 앞에 있고, s_lock이라서 acquire
-            else if (lock_mode == 0) {
-                init_lock(new_lock,cur_node->tail,NULL,cur_node,lock_mode,1);
-
-                cur_node->tail->next = new_lock;
-                cur_node->tail = new_lock;
-
-                set_trx_hash_node(trx_id,new_lock);
-            }
-            //s_lock이 앞에 있고, x_lock이라서 wait
-            else {
-                init_lock(new_lock,cur_node->tail,NULL,cur_node,lock_mode,0);
-                
-                cur_lock = cur_node->head;
-                //new_lock 앞에있는 모든 s_lock을 wait_list에 추가
-                while(cur_lock != NULL) {
-                    if(cur_lock->owner_trx_id != trx_id)
-                        trx_add_wait_lock(cur_lock,trx_id);
-                    cur_lock = cur_lock->next;
-                }
-
-                cur_lock = cur_node->head;
-                //new_lock 앞에있는 모든 s_lock에 대해 dead_lock_detection
-                while(cur_lock != NULL) {
-                    is_dead_lock = detect_dead_lock(cur_lock->owner_trx_id,trx_id);
-                    cur_lock = cur_lock->next;
-                    if(is_dead_lock) {
-                        trx_abort(trx_id);
-                        pthread_mutex_unlock(&lock_mutex);
-                        return NULL;
-                    }
-                }
-
-                cur_node->tail->next = new_lock;
-                cur_node->tail = new_lock;
-
-                set_trx_hash_node(trx_id,new_lock);
-                pthread_cond_wait(&new_lock->cond,&lock_mutex);
-            }
-        }
-        else {
-            init_lock(new_lock,cur_node->tail,NULL,cur_node,lock_mode,0);
-            //wait_s_lock 또는 wait_x_lock이 s_lock 앞에 있을때
-            if(lock_mode == 0) {
-                cur_lock = cur_node->tail;
-                while(cur_lock->lock_mode == 0) {
-                    cur_lock = cur_lock->prev;
-                }
-                if(cur_lock->owner_trx_id == trx_id) {
-                    free(new_lock);
-                    pthread_mutex_unlock(&lock_mutex);
-                    return NULL;
-                }
-                trx_add_wait_lock(cur_lock,trx_id);
-                is_dead_lock = detect_dead_lock(cur_lock->owner_trx_id,trx_id);
-                if(is_dead_lock) {
-                    trx_abort(trx_id);
-                    pthread_mutex_unlock(&lock_mutex);
-                    return NULL;
-                }
-            } else {
-                cur_lock = cur_node->tail;
-                //wait_s_lock이 x_lock 앞에 있을 때
-                lock_t* first_x_lock = NULL;
-                if(cur_lock->lock_mode == 0) {
-                    while(cur_lock->lock_mode == 0) {
-                        cur_lock = cur_lock->prev;
-                    }
-                    first_x_lock = cur_lock;
-                    cur_lock = first_x_lock->next;
-                    while(cur_lock != NULL) {
-                        if(cur_lock->owner_trx_id != trx_id)
-                            trx_add_wait_lock(cur_lock,trx_id);
-                        cur_lock = cur_lock->next;
-                    }
-
-                    cur_lock = first_x_lock->next;
-                    //new_lock 뒤에있는 모든 s_lock에 대해 dead_lock_detection
-                    while(cur_lock != NULL) {
-                        is_dead_lock = detect_dead_lock(cur_lock->owner_trx_id,trx_id);
-                        cur_lock = cur_lock->next;
-                        if(is_dead_lock) {
-                            trx_abort(trx_id);
-                            pthread_mutex_unlock(&lock_mutex);
-                            return NULL;
-                        }
-                    }
-                } else {
-                    cur_lock = cur_node->tail;
-                    while(cur_lock->lock_mode == 0) {
-                        cur_lock = cur_lock->prev;
-                    }
-                    if(cur_lock->owner_trx_id == trx_id) 
-                        trx_add_wait_lock(cur_lock,trx_id);
-                    is_dead_lock = detect_dead_lock(cur_lock->owner_trx_id,trx_id);
-                    if(is_dead_lock) {
-                        trx_abort(trx_id);
-                        pthread_mutex_unlock(&lock_mutex);
-                        return NULL;
-                    }
-                }   
-            }
-
+    //acquire
+    if(cur_node == NULL || (lock_mode == 0 && cur_node->tail->lock_mode == 0 && cur_node->tail->is_acquire == 1)) {
+        if(cur_node == NULL) {
+            lock_hash_node* new_node = (lock_hash_node*)malloc(sizeof(lock_hash_node));
+            init_lock(new_lock,NULL,NULL,new_node,lock_mode,1);
+            new_node->table_id = table_id;
+            new_node->record_id = key;
+            new_node->head = new_lock;
+            new_node->tail = new_lock;
+            new_node->next_hash = lock_hash_table[table_id%10][key%LOCK_HASH];
+            lock_hash_table[table_id%10][key%LOCK_HASH] = new_node;
+        } else {
+            init_lock(new_lock,cur_node->tail,NULL,cur_node,lock_mode,1);
             cur_node->tail->next = new_lock;
             cur_node->tail = new_lock;
+        }
+        set_trx_hash_node(trx_id,new_lock);
+    } else {
+        init_lock(new_lock,cur_node->tail,NULL,cur_node,lock_mode,0);
+        lock_t* first_x_lock = cur_node->tail;
+        int is_same = 1;
+        while(first_x_lock != NULL && first_x_lock->lock_mode == 0)
+            first_x_lock = first_x_lock->prev;
+        if(lock_mode == 0 || cur_node->tail->lock_mode == 1) {
+            if(first_x_lock->owner_trx_id != trx_id) {
+                is_dead_lock = detect_dead_lock(first_x_lock->owner_trx_id,trx_id);
+                if(is_dead_lock) {
+                    free(new_lock);
+                    trx_abort(trx_id,1);
+                    pthread_mutex_unlock(&lock_mutex);
+                    return NULL;
+                }
+                is_same = 0;
+                trx_add_wait_lock(first_x_lock,trx_id);
+            } else {
+                if(lock_mode == 0) {
+                    free(new_lock);
+                    pthread_mutex_unlock(&lock_mutex);
+                    return 1;
+                }
+            }
+        } else {
+            lock_t* cur_lock = cur_node->tail;
+            while(cur_lock != first_x_lock) {
+                if(cur_lock->owner_trx_id != trx_id) {
+                    is_dead_lock = detect_dead_lock(cur_lock->owner_trx_id,trx_id);
+                    if(is_dead_lock) {
+                        free(new_lock);
+                        trx_abort(trx_id,1);
+                        pthread_mutex_unlock(&lock_mutex);
+                        return NULL;
+                    }
+                } 
+                cur_lock = cur_lock->prev;
+            }
+            cur_lock = cur_node->tail;
+            while(cur_lock != first_x_lock) {
+                if(cur_lock->owner_trx_id != trx_id) {
+                    is_same = 0;
+                    trx_add_wait_lock(cur_lock,trx_id);
+                } 
+                cur_lock = cur_lock->prev;
+            }
+        }
 
-            set_trx_hash_node(trx_id,new_lock);
-            
+        cur_node->tail->next = new_lock;
+        cur_node->tail = new_lock;
+        set_trx_hash_node(trx_id,new_lock);
+
+        if(is_same) {
+            new_lock->is_acquire = 1;
+        } else {
             pthread_cond_wait(&new_lock->cond,&lock_mutex);
         }
+
     }
+    new_lock->is_acquire = 1;
 
     pthread_mutex_unlock(&lock_mutex);
 
@@ -174,7 +111,6 @@ lock_t* lock_acquire(int table_id, int64_t key, int trx_id, int lock_mode) {
 }
 
 int lock_release(lock_t* lock_obj) {
-    pthread_mutex_lock(&lock_mutex);
     lock_hash_node* sentinel = lock_obj->sentinel;
     //acquire
     if(lock_obj->next) {
@@ -192,14 +128,14 @@ int lock_release(lock_t* lock_obj) {
     if(sentinel->head == NULL && sentinel->tail == NULL) {
         lock_hash_node* cur_node = lock_hash_table[sentinel->table_id%10][sentinel->record_id%LOCK_HASH];
         lock_hash_node* before_node = NULL;
-        while(cur_node != NULL && !(cur_node->table_id == sentinel->table_id && cur_node->record_id == sentinel->record_id)) {
+        while(!(cur_node->table_id == sentinel->table_id && cur_node->record_id == sentinel->record_id)) {
             before_node = cur_node;
             cur_node = cur_node->next_hash;
         }
         if(before_node != NULL) {
-            before_node->next_hash = cur_node;
+            before_node->next_hash = cur_node->next_hash;
         } else {
-            lock_hash_table[sentinel->table_id%10][sentinel->record_id%LOCK_HASH] = NULL;
+            lock_hash_table[sentinel->table_id%10][sentinel->record_id%LOCK_HASH] = cur_node->next_hash;
         }
         free(sentinel);
     }
@@ -210,6 +146,7 @@ int lock_release(lock_t* lock_obj) {
             while(next_s_lock != NULL && next_s_lock->lock_mode != 1) {
                 if(trx_remove_wait_lock(lock_obj,next_s_lock->owner_trx_id)) {
                     pthread_cond_signal(&next_s_lock->cond);
+                    next_s_lock->is_acquire = 1;
                 }
                 next_s_lock = next_s_lock->next;
             }
@@ -222,12 +159,21 @@ int lock_release(lock_t* lock_obj) {
             if(first_x_lock) {
                 if(trx_remove_wait_lock(lock_obj,first_x_lock->owner_trx_id)) {
                     pthread_cond_signal(&first_x_lock->cond);
+                    first_x_lock->is_acquire = 1;
                 }
             }
         }
     }
     free(lock_obj->original);
     free(lock_obj);
+    return 0;
+}
+
+void lock_manager_mutex_lock() {
+    pthread_mutex_lock(&lock_mutex);
+}
+
+void lock_manager_mutex_unlock() {
     pthread_mutex_unlock(&lock_mutex);
 }
 
