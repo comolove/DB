@@ -6,14 +6,13 @@ int trx_num = 1;
 
 trx_hash_node* trx_hash_table[HASH_SIZE];
 
-pthread_mutex_t trx_manager_mutex;
+pthread_mutex_t trx_manager_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
 
 int init_trx_table() {
     int i;
     for(i=0;i<HASH_SIZE;i++) {
         trx_hash_table[i] = NULL;
     }
-    trx_manager_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
 }
 
 //trx_hash_table에 추가함
@@ -35,6 +34,7 @@ int trx_begin() {
 }
 
 void trx_abort(int trx_id, int is_locked) {
+    if(trx_id == 0) return;
     if(!is_locked) lock_manager_mutex_lock();
     pthread_mutex_lock(&trx_manager_mutex);
     // printf("%d is aborted!!!!!!!!!!!!!!!!!!!!!!!!!!\n",trx_id);

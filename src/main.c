@@ -116,7 +116,7 @@ int main( int argc, char ** argv ) {
         case 'f':
         	memset(findRetVal,0,120);
         	scanf("%d", &input);
-        	printf("%d -> %s\n",db_find(table_id,input,findRetVal,1),findRetVal);
+        	printf("%d -> %s\n",db_find(table_id,input,findRetVal,0),findRetVal);
         	break;
         case 'i':
         	scanf("%d %d",&input,&input2);
@@ -159,6 +159,11 @@ int main( int argc, char ** argv ) {
 			break;
         case 't':
             print_tree(root);
+            break;
+        case 'u':
+        	scanf("%d %d",&input,&input2);
+            sprintf(findRetVal,"%d",input2);
+            db_update(table_id,input,findRetVal,0);
             break;
         case 'v':
         	scanf("%d",&input);

@@ -388,7 +388,7 @@ int db_find(int table_id,int64_t key, char* ret_val,int trx_id) {
         return -1;
     }
     buffer_close_page(table_id,0,0);
-   // if(lock_acquire(table_id,key,trx_id,0) == NULL) return -1;
+    if(lock_acquire(table_id,key,trx_id,0) == NULL) return -1;
 	hp = (HeaderPage*)buffer_read_page(table_id,0);
 	int ret = db_find_with_hp(table_id,key,ret_val,(page_t*)hp,0,NULL);
 	buffer_close_page(table_id,0,0);
@@ -443,7 +443,7 @@ int db_find_with_hp(int table_id,int64_t key, char* ret_val,page_t* head, int mo
         if(key == lp->records[mid].key){
             //update
             if(mode == 1) {
-                strcpy(lock->original,lp->records[mid].value);
+                if(lock != 1) strcpy(lock->original,lp->records[mid].value);
                 strcpy(lp->records[mid].value,ret_val);
                 buffer_close_page(table_id,cur,1);
             }
