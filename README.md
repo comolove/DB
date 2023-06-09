@@ -1,10 +1,29 @@
-# DB
+# DBMS
 
 -----------
 
-### DB 설명  
+### DBMS 설명  
+
+#### File System
 한 파일을 한 테이블로 설정  
-페이지 단위로 I/O가 일어남. (4096 Byte)  
+페이지 단위로 DISK I/O가 일어남. (4096 Byte)  
+
+캐싱을 위한 in-memory Buffer 존재
+LRU policy를 사용함
+lazy sync를 통한 buffer I/O
+
+#### File Struct
+meta data를 담고있는 file header
+record를 저장하는 file data
+
+| b+tree 구조
+insert, find, update, delete와 같은 모든 연산은 O(lon n) 시간 복잡도를 가짐
+모든 record는 leaf 노드에 존재
+AVL 트리의 성격을 갖고 있어 insert, delete, update시 tree의 depth를 조정
+
+#### Concurrency Control
+멀티 쓰레드를 지원
+transaction, mutex lock을 통한 동시성 제어
 
 ------------
 
